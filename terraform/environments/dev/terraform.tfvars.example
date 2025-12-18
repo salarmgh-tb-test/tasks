@@ -1,0 +1,19 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and fill in your values
+
+project     = "tradebytes"
+environment = "dev"
+region      = "eu-north-1"
+
+# ... other variables ...
+
+#--------------------------------------------------------------
+# GitHub Configuration (Optional - for auto-creating secrets)
+#--------------------------------------------------------------
+# Uncomment and fill these to automatically create GitHub repository secrets
+# github_owner      = "your-github-username-or-org"
+# github_repository = "your-repo-name"
+# github_token      = "ghp_your_github_personal_access_token"
+
+# Note: github_token can also be set via environment variable:
+# export GITHUB_TOKEN="ghp_your_token"

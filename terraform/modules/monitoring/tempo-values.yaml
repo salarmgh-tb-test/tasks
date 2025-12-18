@@ -1,0 +1,116 @@
+# Tempo Helm Chart Values
+# Environment: ${environment}
+
+# Use single-binary mode for simplicity (suitable for small-medium deployments)
+tempo:
+  registry: docker.io
+  repository: grafana/tempo
+  tag: ""
+  pullPolicy: IfNotPresent
+
+  # Resource configuration
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Replicas
+  replicas: ${tempo_replicas}
+
+  # Storage configuration - Using S3
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: ${tempo_s3_bucket}
+        region: ${aws_region}
+        endpoint: ${s3_endpoint}  # AWS S3 endpoint for the region
+      wal:
+        path: /var/tempo/wal
+
+  # Retention in hours format (e.g., 168h for 7 days)
+  retention: ${tempo_retention_hours}
+
+  # Receiver configuration - accept OTLP traces
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Persistent volume - Small PVC for operational storage (WAL, temp files, cache)
+# S3 stores the actual trace data, but we still need local storage for operations
+persistence:
+  enabled: true  # Still needed for WAL, temp files, and caching
+  size: 5Gi      # Small size - just for operational data, not trace storage
+  storageClassName: gp2
+  accessModes:
+    - ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3100
+
+# ServiceMonitor for Prometheus scraping
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  labels:
+    release: kube-prometheus-stack
+
+# Ingester configuration
+ingester:
+  replicas: ${tempo_replicas}
+
+# Compactor for trace data
+compactor:
+  replicas: 1
+
+# Distributor receives traces
+distributor:
+  replicas: ${tempo_replicas}
+
+# Query frontend
+queryFrontend:
+  replicas: ${tempo_replicas}
+
+# Querier
+querier:
+  replicas: ${tempo_replicas}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+# Service Account for IRSA (IAM Roles for Service Accounts) - S3 access
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ${tempo_irsa_role_arn}
+  name: tempo
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3100"
+
+# Resource limits for production
+%{ if environment == "production" }
+tempo:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+%{ endif }
+

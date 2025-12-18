@@ -1,0 +1,280 @@
+---
+#--------------------------------------------------------------
+# kube-prometheus-stack Custom Values
+#--------------------------------------------------------------
+
+# Global settings
+fullnameOverride: "prometheus"
+
+# Default security context for all pods
+defaultRules:
+  create: true
+  rules:
+    alertmanager: ${alertmanager_enabled}
+    etcd: false # Not accessible in EKS
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverSlos: true
+    kubeControllerManager: false # Not accessible in EKS
+    kubeProxy: true
+    kubeScheduler: false # Not accessible in EKS
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    network: true
+    node: true
+    nodeExporterAlerting: ${node_exporter_enabled}
+    nodeExporterRecording: ${node_exporter_enabled}
+    prometheus: true
+    prometheusOperator: true
+
+# Alertmanager configuration
+alertmanager:
+  enabled: ${alertmanager_enabled}
+
+  alertmanagerSpec:
+    replicas: 1
+    retention: 120h
+
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ${prometheus_storage_class}
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: ${alertmanager_storage_size}
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ["alertname", "cluster", "service"]
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: "null"
+      routes:
+        - match:
+            alertname: Watchdog
+          receiver: "null"
+
+    receivers:
+      - name: "null"
+
+# Grafana configuration
+grafana:
+  enabled: true
+  replicas: ${grafana_replicas}
+
+  adminPassword: ${grafana_admin_password}
+
+  ingress:
+    enabled: ${grafana_ingress_enabled}
+    ingressClassName: ${grafana_ingress_class}
+    hosts:
+      - ${grafana_ingress_host}
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+
+  persistence:
+    enabled: true
+    storageClassName: ${prometheus_storage_class}
+    size: ${grafana_storage_size}
+
+  # Disable sidecar datasources (we configure them explicitly below)
+  sidecar:
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: false
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-prometheus:9090
+          access: proxy
+          isDefault: true
+          jsonData:
+            timeInterval: 30s
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      kubernetes-cluster:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+      kubernetes-pods:
+        gnetId: 6417
+        revision: 1
+        datasource: Prometheus
+      node-exporter:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+      postgresql:
+        gnetId: 9628
+        revision: 7
+        datasource: Prometheus
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  grafana.ini:
+    server:
+      domain: ${grafana_ingress_host}
+      root_url: http://${grafana_ingress_host}
+    analytics:
+      check_for_updates: false
+    log:
+      mode: console
+    auth.anonymous:
+      enabled: false
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    replicas: ${prometheus_replicas}
+    retention: ${prometheus_retention_days}d
+    retentionSize: "45GB"
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ${prometheus_storage_class}
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: ${prometheus_storage_size}
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+    # Service monitors for application metrics
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+    # Additional scrape configs for custom exporters
+    additionalScrapeConfigs: []
+
+    # External labels
+    externalLabels:
+      cluster: ${cluster_name}
+      environment: ${environment}
+
+  service:
+    type: ClusterIP
+    port: 9090
+
+# Prometheus Operator configuration
+prometheusOperator:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 100Mi
+
+# Node Exporter (collects node-level metrics)
+nodeExporter:
+  enabled: ${node_exporter_enabled}
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 30Mi
+    limits:
+      cpu: 200m
+      memory: 50Mi
+
+# Kube State Metrics (Kubernetes object metrics)
+kubeStateMetrics:
+  enabled: ${kube_state_metrics_enabled}
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# Disable components not accessible in EKS
+kubeEtcd:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+# Enable kube-proxy monitoring
+kubeProxy:
+  enabled: true
+
+# Enable API server monitoring
+kubeApiServer:
+  enabled: true
+
+# Enable CoreDNS monitoring
+coreDns:
+  enabled: true
+
+# Enable kubelet monitoring
+kubelet:
+  enabled: true
+  namespace: kube-system

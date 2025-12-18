@@ -1,0 +1,6 @@
+[submodule "backend"]
+	path = backend
+	url = git@github.com:salarmgh-tb-test/backend.git
+[submodule "frontend"]
+	path = frontend
+	url = git@github.com:salarmgh-tb-test/frontend.git

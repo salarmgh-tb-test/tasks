@@ -1,0 +1,163 @@
+# Loki Helm Chart Values
+# Environment: ${environment}
+
+# Deployment mode: SingleBinary for simplicity
+deploymentMode: SingleBinary
+
+loki:
+  # Authentication
+  auth_enabled: false
+
+  # Common configuration
+  commonConfig:
+    replication_factor: 1
+
+  # Storage configuration - Using S3
+  storage:
+    type: s3
+    bucketNames:
+      chunks: ${loki_s3_bucket_chunks}
+      ruler: ${loki_s3_bucket_ruler}
+    s3:
+      region: ${aws_region}
+      # endpoint: ""  # Use default AWS S3 endpoint (commented out - use default)
+      s3ForcePathStyle: false
+
+  # Schema configuration
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: tsdb
+        object_store: s3  # Changed from filesystem to s3
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  # Limits configuration
+  limits_config:
+    retention_period: ${loki_retention_days}d
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+    max_query_series: 10000
+    max_query_parallelism: 32
+
+  # Ruler configuration (for alerts)
+  # Ruler automatically uses the storage.bucketNames.ruler bucket
+  # No separate rulerConfig needed when using the same storage type
+
+# Single Binary deployment
+singleBinary:
+  replicas: ${loki_replicas}
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Persistence - Small PVC for operational storage (WAL, temp files, cache)
+  # S3 stores the actual log chunks, but we still need local storage for operations
+  persistence:
+    enabled: true   # Still needed for WAL, temp files, and caching
+    size: 5Gi       # Small size - just for operational data, not log storage
+    storageClass: gp2
+
+  # Extra environment variables
+  extraEnv:
+    - name: ENVIRONMENT
+      value: ${environment}
+
+# Read component (for distributed mode - disabled in single binary)
+read:
+  replicas: 0
+
+# Write component (for distributed mode - disabled in single binary)
+write:
+  replicas: 0
+
+# Backend component (for distributed mode - disabled in single binary)
+backend:
+  replicas: 0
+
+# Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+  selfMonitoring:
+    enabled: false
+
+  lokiCanary:
+    enabled: false
+
+# Gateway (nginx)
+gateway:
+  enabled: true
+  replicas: 1
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 80
+
+  # Resources
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Test pod
+test:
+  enabled: false
+
+# Prometheus rules
+prometheusRule:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+# Service Account for IRSA (IAM Roles for Service Accounts) - S3 access
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ${loki_irsa_role_arn}
+  name: loki
+
+# Disable chunks cache for single binary mode (reduces memory requirements)
+# The chunks cache requires ~8GB memory which is too much for small clusters
+chunksCache:
+  enabled: false
+
+# Production optimizations
+%{ if environment == "production" }
+singleBinary:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+loki:
+  limits_config:
+    ingestion_rate_mb: 50
+    ingestion_burst_size_mb: 100
+    max_query_series: 50000
+%{ endif }
+

@@ -1,0 +1,77 @@
+# OpenTelemetry Operator Helm Chart Values
+# Environment: ${environment}
+
+# Replica count
+replicaCount: 1
+
+# Manager configuration
+manager:
+  # Image configuration
+  image:
+    repository: ghcr.io/open-telemetry/opentelemetry-operator/opentelemetry-operator
+    tag: ""  # Uses chart's appVersion
+    imagePullPolicy: IfNotPresent
+
+  # Collector image to use for OpenTelemetryCollector CRs
+  collectorImage:
+    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+    tag: 0.140.1
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # Feature gates
+  featureGates: ""
+
+  # Service account
+  serviceAccount:
+    create: true
+    name: opentelemetry-operator
+    annotations: {}
+
+  # Service Monitor for Prometheus
+  serviceMonitor:
+    enabled: true
+    extraLabels:
+      release: kube-prometheus-stack
+    metricsEndpoints:
+      - port: metrics
+
+  # Environment variables
+  env:
+    ENABLE_WEBHOOKS: "true"
+
+# Admission webhooks for auto-instrumentation
+admissionWebhooks:
+  create: true
+  certManager:
+    enabled: ${certmanager_enabled}
+    issuerRef: {}
+
+# Prometheus rules
+# prometheusRule:
+#   enabled: false
+
+# Production optimizations
+%{ if environment == "production" }
+replicaCount: 2
+
+manager:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+pdb:
+  create: true
+  minAvailable: 1
+%{ endif }
