@@ -33,7 +33,7 @@ git submodule update --init --recursive
 - kubectl installed
 - Access to the AWS account and EKS cluster
 
-**Note**: Due to AWS free tier account limitations, we cannot deploy a third RDS instance. As a result, the platform uses the postgres-operator (CloudNativePG) deployed within Kubernetes to manage PostgreSQL databases instead of AWS RDS for all environments.
+**Note**: Due to AWS free tier account limitations, we cannot deploy a third RDS instance. As a result, the development environment uses the postgres-operator (CloudNativePG) deployed within Kubernetes to manage PostgreSQL databases, while staging and production environments use AWS RDS.
 
 ## Initial Setup
 
@@ -222,34 +222,6 @@ curl http://frontend.example.com
 # or
 curl -H "Host: frontend.example.com" http://[LOAD_BALANCER_ADDRESS]
 ```
-
-## Troubleshooting
-
-If you encounter issues:
-
-1. **Check pod status:**
-
-   ```bash
-   kubectl get pods -n tradebytes
-   kubectl describe pod [POD_NAME] -n tradebytes
-   kubectl logs [POD_NAME] -n tradebytes
-   ```
-
-2. **Check ingress status:**
-
-   ```bash
-   kubectl describe ingress -n tradebytes
-   ```
-
-3. **Verify services:**
-
-   ```bash
-   kubectl get svc -n tradebytes
-   ```
-
-4. **Check GitHub Actions:** Ensure both backend and frontend CI/CD pipelines completed successfully
-
-5. **Verify AWS resources:** Check that all AWS resources (EKS cluster, load balancer, etc.) are running in the AWS Console
 
 ## Additional Services
 
