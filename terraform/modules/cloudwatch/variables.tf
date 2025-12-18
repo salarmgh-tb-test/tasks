@@ -90,9 +90,9 @@ variable "enable_rds_alarms" {
 }
 
 variable "enable_alb_alarms" {
-  description = "Enable ALB CloudWatch alarms"
+  description = "Enable ALB CloudWatch alarms (requires alb_arn_suffix to be set)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "enable_nat_gateway_alarms" {

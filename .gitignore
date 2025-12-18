@@ -12,7 +12,6 @@ env-*
 .terraform/
 *.tfstate
 *.tfstate.*
-*.tfvars
 !*.tfvars.example
 crash.log
 crash.*.log
